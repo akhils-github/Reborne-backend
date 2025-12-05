@@ -21,4 +21,26 @@ const authUser = asyncHandler(async (req, res) => {
   }
 });
 
+// GET CURRENT USER
+export const getCurrentUser = asyncHandler(async (req, res) => {
+  // req.userId is guaranteed to exist due to the isAuthenticated middleware
+  const userId = req.user._id;
+  console.log(userId)
+  try {
+    const user = await User.findById(userId)
+
+    if (!user) {
+      // Should not happen if middleware worked, but good safeguard
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    return res.status(200).json(user);
+  } catch (error) {
+    console.error("Get user details error:", error);
+    return res
+      .status(500)
+      .json({ message: "Failed to retrieve user details." });
+  }
+});
+
 export { authUser };
