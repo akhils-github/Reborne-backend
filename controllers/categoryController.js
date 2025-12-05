@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import { Category } from "../models/Category.js";
 import { Product } from "../models/Product.js";
+import mongoose from "mongoose";
 
 // GET /api/categories
 const getCategories = asyncHandler(async (req, res) => {
@@ -14,7 +15,12 @@ const getCategories = asyncHandler(async (req, res) => {
     .limit(pageSize)
     .skip(pageSize * (page - 1))
     .populate("parentCategory");
-  res.json({ data:categories, page, pages: Math.ceil(count / pageSize), count });
+  res.json({
+    data: categories,
+    page,
+    pages: Math.ceil(count / pageSize),
+    count,
+  });
 });
 // GET /api/categories/:id
 const getCategoryById = asyncHandler(async (req, res) => {
@@ -53,53 +59,30 @@ const updateCategory = asyncHandler(async (req, res) => {
 // DELETE /api/categories/:id
 const deleteCategory = asyncHandler(async (req, res) => {
   const categoryId = req.params.id;
-  const session = await mongoose.startSession(); // Start a transaction session
 
-  try {
-    session.startTransaction();
-
-    // category to ensure it exists
-    const category = await Category.findById(categoryId).session(session);
-
-    if (!category) {
-      await session.abortTransaction();
-      res.status(404);
-      throw new Error("Category not found");
-    }
-
-    //  Handle related Products: Unlink the category from all associated products
-    const updateResult = await Product.updateMany(
-      { category: categoryId },
-      { $set: { category: null } }, // Set the category field to null
-      { session: session }
-    );
-
-  
-
-    // Delete the Category
-    await Category.findByIdAndDelete(categoryId, { session: session });
-
-    // Commit the transaction if both operations succeeded
-    await session.commitTransaction();
-
-    res.json({
-      message: "Category and its product references successfully removed.",
-      productsUpdated: updateResult.modifiedCount,
-    });
-  } catch (error) {
-    // If any operation failed, abort the transaction
-    await session.abortTransaction();
-    console.error("Transaction failed during category deletion:", error);
-    // Re-throw the error or send a 500 status
-    if (res.statusCode === 200) {
-      // Check if status was not already set (e.g., 404)
-      res.status(500);
-    }
-    throw new Error(`Failed to delete category: ${error.message}`);
-  } finally {
-    session.endSession(); // End the session
+  // Check if category exists
+  const category = await Category.findById(categoryId);
+  if (!category) {
+    res.status(404);
+    throw new Error("Category not found");
   }
+
+  // Check if any product is using this category
+  const productExists = await Product.findOne({ category: categoryId });
+
+  if (productExists) {
+    res.status(400);
+    throw new Error(
+      "Cannot delete this category because it is assigned to one or more products."
+    );
+  }
+
+  // Safe to delete
+  await Category.findByIdAndDelete(categoryId);
+
+  res.json({ message: "Category deleted successfully." });
 });
+
 export {
   getCategories,
   getCategoryById,
