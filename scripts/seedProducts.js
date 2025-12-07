@@ -299,6 +299,15 @@ const importData = async () => {
     await Category.deleteMany();
     await User.deleteMany();
 
+    // insert categories
+    const createdCategories = await Category.insertMany(categoryData);
+    const productsWithCategory = sampleProducts.map((product) => {
+      const randomCat =
+        createdCategories[Math.floor(Math.random() * createdCategories.length)];
+      return { ...product, category: randomCat._id };
+    });
+    await Product.insertMany(productsWithCategory);
+
     // create admin user (password will be hashed by the model)
     await User.create({
       name: "Admin",
@@ -306,11 +315,6 @@ const importData = async () => {
       password: "admin123",
       isAdmin: true,
     });
-
-    // insert sample
-    // await Category.insertMany(categoryData);
-    // await Product.insertMany(sampleProducts);
-    // console.log(await  Category.find())
     console.log("Data Imported");
     process.exit();
   } catch (error) {

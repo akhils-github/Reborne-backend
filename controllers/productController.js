@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import { Product } from "../models/Product.js";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
+import { deleteFromCloudinary } from "../utils/cloudinary.js";
 // Upload file to Cloudinary
 const uploadToCloudinary = async (filePath) => {
   const result = await cloudinary.uploader.upload(filePath, {
@@ -134,6 +135,20 @@ const updateProduct = asyncHandler(async (req, res) => {
     throw new Error("Product not found");
   }
   Object.assign(product, req.body);
+  // Handle removed images
+  if (req.body.removedImages) {
+    const removedList = JSON.parse(req.body.removedImages);
+
+    for (const url of removedList) {
+      // Remove from cloudinary
+      const publicId = url.split("/").pop().split(".")[0];
+      await deleteFromCloudinary(publicId);
+
+      // Remove from product.images
+      product.images = product.images.filter((img) => img.url !== url);
+    }
+  }
+
   // upload new images if sent
   if (req.files && req.files.length > 0) {
     const uploads = await Promise.all(
